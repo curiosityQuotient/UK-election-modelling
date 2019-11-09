@@ -1,0 +1,118 @@
+#!/usr/bin/python
+ 
+import csv, random
+ 
+def electionCalculator(randPer):
+  # read in referendum results
+  refDatfName = ('/run/media/tom/DATA/Documents/Election results/' +
+  '2017/Estimates-of-constituency-level-EU-referendum-result.csv')
+  # open file with csv
+  with open(refDatfName, 'rb') as f:
+      reader = csv.reader(f)
+      refData = {}
+      title = 1
+      for row in reader:
+    if title ==  1:
+      title = 0
+    else:
+      refData[row[1]] = row[3]
+      #print row[3]
+     
+ 
+  fName = ('/run/media/tom/DATA/Documents/Election results/' +
+  '2015-UK-general-election-data-results-WEB.csv')
+  # open file with csv
+  with open(fName, 'rb') as f:
+      reader = csv.reader(f)
+      # initiate loop variables
+      i = 1
+      titles = []
+      winners = []
+      # loop over each row in file
+      for row in reader:
+    j = 1
+    # for first row use to create titles
+    if i == 1:
+      for element in row:
+        titles.append(element)
+      #print titles
+    # for other rows find who got the most votes
+    elif i != 1:
+      #print row
+      voteData = []
+      noVotes = int(row[8].replace(',', ''))
+      #print noVotes
+      constName = row[1]
+      #print constName
+      # data is text so has to be converted to integer
+      for el in row[10:]:
+        if el == '':
+          voteData.append(0)
+          #print voteData
+        else:
+          #print el
+          if titles[9+j] == 'C':
+        voteData.append(1.27*int(el))
+          elif titles[9+j] == 'Lab':
+        voteData.append(0.77*int(el))
+        #print 0.77*int(el)
+          elif titles[9+j] == 'LD':
+        if constName in refData:
+          #print 0.25*noVotes*0.01*float(refData[constName][0:4])
+          voteData.append(int(el)+0.25*noVotes*0.01*float(refData[constName][0:4]))
+        else:
+          voteData.append(int(el)+0.25*0.48*noVotes)
+          #print 0.25*0.48*noVotes
+          #voteData.append(1.48*int(el))
+          elif titles[9+j] == 'SNP':
+        voteData.append(0.94*int(el))
+          else:
+        voteData.append(int(el))
+        #print voteData
+        j = j + 1
+      #add random jitter
+      voteDataRand = []
+      randRecord = []
+      #print voteData
+      for el in voteData:
+        change = float(el)*random.gauss(0, randPer)
+        #print change
+        el = float(el)+change
+        voteDataRand.append(round(el))
+        randRecord.append(change)
+      #create list of winners of each constituency
+      winners.append(titles[10+voteDataRand.index(max(voteDataRand))])
+      #print row[2], titles[10+voteData.index(max(voteData))]
+    i = i + 1
+  # loop through winners to see who won
+  wName = '/run/media/tom/DATA/Documents/Election results/randCheck.txt'
+  wFile = open(wName, 'a')
+  for no in voteDataRand:
+    wFile.write("{:.5e}".format(no)+'\n')
+  # reduce list of all winners so each one occurs once
+  winSet = list(set(winners))
+  print winSet
+  # cacluate total number of seats for each party
+  totals = {}
+    #initialize dictionary
+  for party in winSet:
+    totals[party] = 0
+    # loop through and add one if party won
+  for result in winners:
+    for party in winSet:
+      if result == party:
+    totals[party] = totals[party] + 1
+  # write results to a file
+  wName = '/run/media/tom/DATA/Documents/Election results/2015-UK-general-election-calcs.txt'
+  wFile = open(wName, 'a')
+  print totals['C'], ',', totals['Lab'] +totals['Lab Co-op'], ',', totals['LD'],  ',', totals['SNP']
+  wFile.write(str(totals['C'])+','+str(totals['Lab'] + totals['Lab Co-op'])+','+str(totals['LD'])+','+str(totals['SNP'])+'\n')
+  return totals['C']
+ 
+ensemble = []   
+for el in range(1, 2):
+  ensemble.append(electionCalculator(0.05))
+# print ensemble
+print float(sum(ensemble))/len(ensemble)
+success = [win for win in ensemble if win<325]
+print success
