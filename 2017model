@@ -1,118 +1,64 @@
-#!/usr/bin/python
+# -*- coding: utf-8 -*-
+"""
+Script to analyse the results of the 2017 election to check sensitivity to randomness
+
+@author: CuriosityQuotient
+"""
+# use file available at  https://researchbriefings.files.parliament.uk/documents/CBP-7979/HoC-GE2017-constituency-results.csv
+
+import numpy as np
+import pandas as pd
  
-import csv, random
- 
-def electionCalculator(randPer):
-  # read in referendum results
-  refDatfName = ('/run/media/tom/DATA/Documents/Election results/' +
-  '2017/Estimates-of-constituency-level-EU-referendum-result.csv')
-  # open file with csv
-  with open(refDatfName, 'rb') as f:
-      reader = csv.reader(f)
-      refData = {}
-      title = 1
-      for row in reader:
-    if title ==  1:
-      title = 0
+fp = '../Downloads/HoC-GE2017-constituency-results.csv'
+
+resultFrame = pd.read_csv(fp)
+
+# function to determine winner 
+# looks are results columns and finds the one with the most votes
+# assumes no draws
+# returns: column with most votes
+def findWinner(series):
+    if series.iloc[15:].dtype != 'int':
+        votes = series.iloc[15:].astype(int)
     else:
-      refData[row[1]] = row[3]
-      #print row[3]
-     
- 
-  fName = ('/run/media/tom/DATA/Documents/Election results/' +
-  '2015-UK-general-election-data-results-WEB.csv')
-  # open file with csv
-  with open(fName, 'rb') as f:
-      reader = csv.reader(f)
-      # initiate loop variables
-      i = 1
-      titles = []
-      winners = []
-      # loop over each row in file
-      for row in reader:
-    j = 1
-    # for first row use to create titles
-    if i == 1:
-      for element in row:
-        titles.append(element)
-      #print titles
-    # for other rows find who got the most votes
-    elif i != 1:
-      #print row
-      voteData = []
-      noVotes = int(row[8].replace(',', ''))
-      #print noVotes
-      constName = row[1]
-      #print constName
-      # data is text so has to be converted to integer
-      for el in row[10:]:
-        if el == '':
-          voteData.append(0)
-          #print voteData
-        else:
-          #print el
-          if titles[9+j] == 'C':
-        voteData.append(1.27*int(el))
-          elif titles[9+j] == 'Lab':
-        voteData.append(0.77*int(el))
-        #print 0.77*int(el)
-          elif titles[9+j] == 'LD':
-        if constName in refData:
-          #print 0.25*noVotes*0.01*float(refData[constName][0:4])
-          voteData.append(int(el)+0.25*noVotes*0.01*float(refData[constName][0:4]))
-        else:
-          voteData.append(int(el)+0.25*0.48*noVotes)
-          #print 0.25*0.48*noVotes
-          #voteData.append(1.48*int(el))
-          elif titles[9+j] == 'SNP':
-        voteData.append(0.94*int(el))
-          else:
-        voteData.append(int(el))
-        #print voteData
-        j = j + 1
-      #add random jitter
-      voteDataRand = []
-      randRecord = []
-      #print voteData
-      for el in voteData:
-        change = float(el)*random.gauss(0, randPer)
-        #print change
-        el = float(el)+change
-        voteDataRand.append(round(el))
-        randRecord.append(change)
-      #create list of winners of each constituency
-      winners.append(titles[10+voteDataRand.index(max(voteDataRand))])
-      #print row[2], titles[10+voteData.index(max(voteData))]
-    i = i + 1
-  # loop through winners to see who won
-  wName = '/run/media/tom/DATA/Documents/Election results/randCheck.txt'
-  wFile = open(wName, 'a')
-  for no in voteDataRand:
-    wFile.write("{:.5e}".format(no)+'\n')
-  # reduce list of all winners so each one occurs once
-  winSet = list(set(winners))
-  print winSet
-  # cacluate total number of seats for each party
-  totals = {}
-    #initialize dictionary
-  for party in winSet:
-    totals[party] = 0
-    # loop through and add one if party won
-  for result in winners:
-    for party in winSet:
-      if result == party:
-    totals[party] = totals[party] + 1
-  # write results to a file
-  wName = '/run/media/tom/DATA/Documents/Election results/2015-UK-general-election-calcs.txt'
-  wFile = open(wName, 'a')
-  print totals['C'], ',', totals['Lab'] +totals['Lab Co-op'], ',', totals['LD'],  ',', totals['SNP']
-  wFile.write(str(totals['C'])+','+str(totals['Lab'] + totals['Lab Co-op'])+','+str(totals['LD'])+','+str(totals['SNP'])+'\n')
-  return totals['C']
- 
-ensemble = []   
-for el in range(1, 2):
-  ensemble.append(electionCalculator(0.05))
-# print ensemble
-print float(sum(ensemble))/len(ensemble)
-success = [win for win in ensemble if win<325]
-print success
+        votes = series.iloc[15:]
+    winner = votes.idxmax()
+    return winner
+    
+# check that function works on small subset
+# output of function should match 'first_party' column
+subset = resultFrame.head()
+#print(subset['first_party'], subset.apply(findWinner, axis=1))
+
+# function to add some randomness to vote count
+# add or subtracts a random number of votes
+def randVotes(series, factor):
+    votes = series.iloc[15:].astype(int)
+    newVotes = []
+    for val in votes:
+        newVote = round(val + val*factor*np.random.normal())
+        if newVote < 0:
+            newVote = 0
+        newVotes.append(newVote)
+    return newVotes
+
+# generate n election results
+n = 30
+# set how common a vote 'error' occurs
+errRate = [0.01]
+# create final seats dataframe
+seats = pd.DataFrame(index=range(n), columns = resultFrame.columns[15:])
+for i in range(n):
+    # add some noise to election results
+    newResults = resultFrame.apply(randVotes, axis=1, 
+                                   args=[0.1], result_type='expand')
+    resultFrameCpy = resultFrame.copy()
+    resultFrameCpy.iloc[:, 15:] = newResults
+    # calculate seats for each party
+    seatCnt = resultFrameCpy.apply(findWinner, axis=1).value_counts()
+    seats.loc[i, seatCnt.index] = seatCnt
+seats = seats.fillna(0)
+seats = seats.astype(int)
+# show results of Conservative and Labour
+seats.hist(column=seatCnt.index[0])
+seats.hist(column=seatCnt.index[1])
